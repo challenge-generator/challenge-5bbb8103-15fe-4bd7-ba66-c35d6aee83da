@@ -1,0 +1,201 @@
+openapi: 3.1.0
+info:
+  title: Cliente HTTP para Integración con Servicio Externo
+  description: |-
+    Configuración del cliente HTTP para consumir el servicio de buró de riesgos.
+    Incluye manejo de fallos con timeouts y circuit breaker.
+  version: 1.0.0
+servers:
+  - url: https://bureau-riesgos.externo.com/api/v1
+    description: Producción
+  - url: https://sandbox.bureau-riesgos.externo.com/api/v1
+    description: Sandbox para pruebas
+paths:
+  /consulta:
+    post:
+      summary: Consultar perfil de riesgo de un solicitante
+      description: |-
+        Consulta el perfil de riesgo de un solicitante en el buró de riesgos.
+        Retorna información sobre comportamiento crediticio, deudas y score de riesgo.
+      operationId: consultarPerfilRiesgo
+      tags:
+        - Buró de Riesgos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsultaRiesgoRequest'
+            examples:
+              consultaEjemplo:
+                value:
+                  tipoDocumento: "CC"
+                  numeroDocumento: "1234567890"
+                  nombre: "Juan Pérez"
+                  apellido: "Gómez"
+      responses:
+        '200':
+          description: Perfil de riesgo del solicitante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultaRiesgoResponse'
+              examples:
+                perfilRiesgo:
+                  value:
+                    numeroDocumento: "1234567890"
+                    scoreRiesgo: 750
+                    deudasActivas: 2
+                    montoDeudas: 8500000
+                    historicoPagos:
+                      - fecha: "2023-09-15"
+                        monto: 1500000
+                        estado: "AL_DIA"
+                      - fecha: "2023-08-15"
+                        monto: 1200000
+                        estado: "ATRASADO"
+                    recomendacion: "APROBAR_CON_CONDICIONES"
+        '400':
+          description: Error de validación en los datos de entrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autorizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '408':
+          description: Timeout en la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                timeout:
+                  value:
+                    codigo: "TIMEOUT_ERROR"
+                    mensaje: "El servicio de buró de riesgos no respondió en el tiempo esperado"
+        '500':
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Servicio no disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                servicioNoDisponible:
+                  value:
+                    codigo: "SERVICE_UNAVAILABLE"
+                    mensaje: "El servicio de buró de riesgos no está disponible"
+
+components:
+  schemas:
+    ConsultaRiesgoRequest:
+      type: object
+      required:
+        - tipoDocumento
+        - numeroDocumento
+        - nombre
+        - apellido
+      properties:
+        tipoDocumento:
+          type: string
+          enum: ["CC", "CE", "NIT", "PASAPORTE"]
+          description: Tipo de documento de identidad
+          example: "CC"
+        numeroDocumento:
+          type: string
+          description: Número de documento de identidad
+          example: "1234567890"
+          pattern: "^[0-9]{6,15}$"
+        nombre:
+          type: string
+          description: Nombre del solicitante
+          example: "Juan"
+          minLength: 2
+          maxLength: 50
+        apellido:
+          type: string
+          description: Apellido del solicitante
+          example: "Pérez"
+          minLength: 2
+          maxLength: 50
+
+    ConsultaRiesgoResponse:
+      type: object
+      required:
+        - numeroDocumento
+        - scoreRiesgo
+        - deudasActivas
+        - montoDeudas
+      properties:
+        numeroDocumento:
+          type: string
+          description: Número de documento de identidad
+          example: "1234567890"
+        scoreRiesgo:
+          type: integer
+          description: Score de riesgo del solicitante (0-1000)
+          example: 750
+          minimum: 0
+          maximum: 1000
+        deudasActivas:
+          type: integer
+          description: Número de deudas activas
+          example: 2
+        montoDeudas:
+          type: number
+          description: Monto total de deudas en COP
+          example: 8500000
+        historicoPagos:
+          type: array
+          description: Historial de pagos realizados
+          items:
+            type: object
+            required:
+              - fecha
+              - monto
+              - estado
+            properties:
+              fecha:
+                type: string
+                format: date
+                description: Fecha del pago
+                example: "2023-09-15"
+              monto:
+                type: number
+                description: Monto pagado en COP
+                example: 1500000
+              estado:
+                type: string
+                enum: ["AL_DIA", "ATRASADO", "EN_MORA"]
+                description: Estado del pago
+                example: "AL_DIA"
+        recomendacion:
+          type: string
+          enum: ["APROBAR", "APROBAR_CON_CONDICIONES", "RECHAZAR"]
+          description: Recomendación basada en el perfil de riesgo
+          example: "APROBAR_CON_CONDICIONES"
+
+    ErrorResponse:
+      type: object
+      required:
+        - codigo
+        - mensaje
+      properties:
+        codigo:
+          type: string
+          description: Código de error
+          example: "VALIDACION_ERROR"
+        mensaje:
+          type: string
+          description: Mensaje descriptivo del error
+          example: "El campo 'numeroDocumento' es obligatorio"

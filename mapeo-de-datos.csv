@@ -1,0 +1,74 @@
+campo_origen,tipo_origen,obligatorio,campo_destino,tipo_destino,regla_transformacion,ejemplo_origen,ejemplo_destino
+solicitud_id,string,true,id_solicitud,UUID,Generar UUID v4 si no existe,REQ-2023-001,550e8400-e29b-41d4-a716-446655440000
+cliente_nombre,string,true,nombre_cliente,string,Normalizar texto (trim, mayúsculas iniciales),Juan perez,Juan Perez
+cliente_tipo_documento,string,true,tipo_identificacion,string,Mapear a valores permitidos (CC, CE, NIT),Cédula de Ciudadanía,CC
+cliente_numero_documento,string,true,numero_identificacion,string,Limpiar caracteres no numéricos (excepto para NIT),1.053.789-45,105378945
+cliente_fecha_nacimiento,date,true,fecha_nacimiento,date,Convertir a formato ISO 8601 (YYYY-MM-DD),15/08/1985,1985-08-15
+cliente_ingresos_mensuales,number,true,ingresos_mensuales,number,Convertir a COP (multiplicar por 1 si ya está en COP),4500000,4500000
+cliente_historial_crediticio,string,true,score_crediticio,number,Mapear a score numérico (0-1000),"Sin reportes negativos",750
+inmueble_valor,number,true,valor_inmueble,number,Convertir a COP si está en otra moneda,250000USD,1000000000
+inmueble_direccion,string,true,direccion_inmueble,string,Normalizar formato de dirección,Calle 12 # 34-56,CL 12 34 56
+monto_solicitado,number,true,monto_credito,number,Validar que sea mayor a 0 y menor al 80% del valor del inmueble,180000000,180000000
+plazo_meses,number,true,plazo_meses,integer,Redondear a entero y validar rango (5-360 meses),240,240
+tasa_interes,number,true,tasa_interes,decimal,Convertir a formato decimal (0.0000),12.5%,0.125
+cuota_mensual_estimada,number,false,cuota_mensual,number,Calcular si no viene,"",3800000
+fecha_solicitud,datetime,true,fecha_creacion,timestamp,Convertir a timestamp UTC,2023-10-01T10:00:00-05:00,2023-10-01T15:00:00Z
+estado_solicitud,string,true,estado,string,Mapear a valores permitidos (PENDIENTE, EN_REVISION, APROBADO, RECHAZADO),En revisión,EN_REVISION
+motivo_rechazo,string,false,motivo_rechazo,string,Normalizar texto si existe,"Capacidad de endeudamiento insuficiente","Capacidad de endeudamiento insuficiente"
+
+## Descripción del Mapeo de Datos
+
+Este archivo CSV define el mapeo entre los campos del sistema origen (solicitud de crédito) y el sistema destino (sistema central de créditos). Cada fila incluye:
+
+1. **campo_origen**: Nombre del campo en el sistema que envía los datos.
+2. **tipo_origen**: Tipo de dato en el sistema origen (string, number, date, datetime).
+3. **obligatorio**: Indica si el campo es obligatorio (true/false).
+4. **campo_destino**: Nombre del campo en el sistema destino.
+5. **tipo_destino**: Tipo de dato en el sistema destino (UUID, string, number, integer, decimal, date, timestamp).
+6. **regla_transformacion**: Reglas aplicadas para transformar el dato.
+7. **ejemplo_origen**: Ejemplo de dato en el sistema origen.
+8. **ejemplo_destino**: Ejemplo de dato transformado en el sistema destino.
+
+### Reglas de Transformación Destacadas:
+- **UUID**: Si el campo `solicitud_id` no es un UUID, se genera uno nuevo para garantizar unicidad.
+- **Normalización de Texto**: Los campos de texto se normalizan para eliminar espacios adicionales y corregir mayúsculas.
+- **Limpieza de Caracteres**: En campos como `cliente_numero_documento`, se eliminan caracteres no numéricos (excepto para NIT).
+- **Mapeo de Valores**: Campos como `cliente_tipo_documento` y `estado_solicitud` se transforman a valores permitidos en el sistema destino.
+- **Conversión de Unidades**: El campo `inmueble_valor` se convierte a COP si viene en otra moneda (ejemplo: USD → COP usando una tasa de cambio ficticia de 4000).
+- **Cálculo de Campos**: La `cuota_mensual_estimada` se calcula si no viene en la solicitud original.
+
+### Validaciones Adicionales:
+- **Monto del Crédito**: Debe ser mayor a 0 y no superar el 80% del valor del inmueble.
+- **Plazo**: Debe estar entre 5 y 360 meses.
+- **Tasa de Interés**: Debe ser un valor decimal entre 0.01 y 0.30 (1% a 30%).
+- **Fecha de Nacimiento**: Debe corresponder a una edad entre 25 y 65 años.
+
+### Ejemplo de Flujo de Datos:
+1. El sistema origen envía una solicitud con los siguientes datos:
+   ```json
+   {
+     "solicitud_id": "REQ-2023-001",
+     "cliente_nombre": "Juan perez",
+     "cliente_tipo_documento": "Cédula de Ciudadanía",
+     "cliente_numero_documento": "1.053.789-45",
+     "monto_solicitado": 180000000
+   }
+   ```
+
+2. El sistema destino recibe los datos transformados:
+   ```json
+   {
+     "id_solicitud": "550e8400-e29b-41d4-a716-446655440000",
+     "nombre_cliente": "Juan Perez",
+     "tipo_identificacion": "CC",
+     "numero_identificacion": "105378945",
+     "monto_credito": 180000000
+   }
+   ```
+
+### Observaciones:
+- Este mapeo es **bidireccional**: algunos campos pueden requerir transformaciones inversas al devolver respuestas al sistema origen.
+- Las reglas de transformación deben implementarse en un **servicio de mapeo** que valide y transforme los datos antes de enviarlos al sistema destino.
+- La decisión de centralizar el mapeo en un servicio (orquestación) permite reutilizar las reglas en múltiples integraciones, pero puede convertirse en un cuello de botella si el volumen de solicitudes es alto.
+
+---
